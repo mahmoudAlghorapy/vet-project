@@ -286,7 +286,7 @@ async function startData(){
   chan=sb.channel('docs-live').on('postgres_changes',{event:'*',schema:'public',table:'docs'},p=>{
     if(p.eventType==='DELETE'){const path=p.old&&p.old.path;if(path&&path.startsWith('months/'))delete S.months[path.slice(7)]}
     else if(p.new)setMonthsFromRows([p.new]);
-    S.cache=null;if(!document.querySelector('.ov'))render()}).subscribe();
+    S.cache=null;if(!S.busy&&!document.querySelector('.ov'))render()}).subscribe();
 }
 async function writeDay(iso,fn){
   const m=iso.slice(0,7);
@@ -597,7 +597,7 @@ function vSetup(){
     const keys=Object.keys(months).filter(k=>/^\d{4}-\d{2}$/.test(k));
     $('#rMsg').innerHTML=`<div class="confirm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span>النسخة فيها ${keys.length} شهر. الاسترجاع هيستبدل الشهور دي بالموجود في النسخة. أكمّل؟</span><button class="btn danger sm" id="rY" type="button">أيوه استرجع</button><button class="btn sm" id="rN" type="button">لأ</button></div>`;
     $('#rN').onclick=()=>{$('#rMsg').innerHTML='';e.target.value=''};
-    $('#rY').onclick=async()=>{$('#rY').disabled=true;try{let i=0;for(const k of keys){await setDoc('months/'+k,{m:k,days:months[k].days||{}});$('#rY').textContent='بيرجّع… '+(++i)+'/'+keys.length}if(data.config)await setDoc('config/main',{...S.config,...data.config});S.cache=null;lists();toast('اترجّعت النسخة');render();}catch(x){toast('الاسترجاع وقف: '+(x.message||x.code))}}};
+    $('#rY').onclick=async()=>{const st=$('#rMsg');S.busy=true;let i=0;st.innerHTML='<div class="note ok">بيرجّع… <b class="n" id="rP">0/'+keys.length+'</b> — ما تقفلش الصفحة</div>';const P=()=>{const el=document.getElementById('rP');if(el)el.textContent=i+'/'+keys.length};try{for(let j=0;j<keys.length;j+=4){const rows=keys.slice(j,j+4).map(k=>({path:'months/'+k,data:{m:k,days:months[k].days||{}},updated_at:new Date().toISOString()}));const r=await sb.from('docs').upsert(rows);if(r.error)throw r.error;rows.forEach(x=>S.months[x.path.slice(7)]=x.data);i+=rows.length;P()}if(data.config)await setDoc('config/main',{...S.config,...data.config});lists();S.busy=false;S.cache=null;toast('اترجّعت النسخة كلها ('+keys.length+' شهر)');render()}catch(x){S.busy=false;toast('الاسترجاع وقف عند شهر '+(keys[i]||'')+' — دوس استرجاع تاني');render()}}};
   $('#cfg').onsubmit=async e=>{e.preventDefault();const d={...S.config,name:$('#cN').value.trim()||'دفتر العيادة البيطرية',openDate:$('#cD').value||c.openDate,openAmount:+$('#cA').value||0,openWallet:+$('#cW').value||0};
     try{await setDoc('config/main',d);toast('اتحفظ');render()}catch(x){toast('مقدرتش أحفظ: '+(x.message||x.code))}};
 }
