@@ -208,8 +208,12 @@ const g=(e,k)=>+e[k]||0;
 const cashIn=e=>g(e,'mi')+g(e,'fi')+g(e,'ii')+g(e,'xi')+g(e,'so')+g(e,'pd');
 const cashOut=e=>g(e,'mo')+g(e,'fo')+g(e,'io')+g(e,'xo')+g(e,'ex')+g(e,'ch');
 const vfNet=e=>g(e,'vi')-g(e,'vo')-g(e,'ve');
-const profit=e=>g(e,'mp')+g(e,'fp')+g(e,'ip')+g(e,'xp')+g(e,'so');
-const netOf=e=>profit(e)-g(e,'ex')-g(e,'ch')-g(e,'ve');
+/* من شيت 5.26 الإكسل مفيهوش عمود مكسب للكتاكيت والتلقيح: المكسب = داخل − خارج (زي معادلة الإكسل) */
+const DERIVE_FROM='2026-05-01';
+const fpOf=(e,d)=>(('fp' in e)||!d||d<DERIVE_FROM)?g(e,'fp'):g(e,'fi')-g(e,'fo');
+const ipOf=(e,d)=>(('ip' in e)||!d||d<DERIVE_FROM)?g(e,'ip'):g(e,'ii')-g(e,'io');
+const profit=(e,d)=>g(e,'mp')+fpOf(e,d)+ipOf(e,d)+g(e,'xp')+g(e,'so');
+const netOf=(e,d)=>profit(e,d)-g(e,'ex')-g(e,'ch')-g(e,'ve');
 
 const S={months:{},config:{name:'دفتر العيادة البيطرية',openDate:'2026-06-01',openAmount:6080},db:null,dl:null,ready:false,day:null,month:null,dash:null,year:null,debtAll:false,q:'',cache:null};
 const $=s=>document.querySelector(s);
@@ -236,14 +240,14 @@ function idx(){
   const days=[];for(const m of Object.values(S.months))for(const [d,es] of Object.entries(m.days||{}))if(es&&es.length)days.push([d,es]);
   days.sort((a,b)=>a[0]<b[0]?-1:1);
   const daySum={},monSum={};
-  for(const [d,es] of days){const s=sumEntries(es);daySum[d]=s;const m=d.slice(0,7);const ms=monSum[m]||(monSum[m]=zero());add(ms,s);ms.days++}
+  for(const [d,es] of days){const s=sumEntries(es,d);daySum[d]=s;const m=d.slice(0,7);const ms=monSum[m]||(monSum[m]=zero());add(ms,s);ms.days++}
   // running balance from opening date
   const bal={};let b=+S.config.openAmount||0,vf=+S.config.openWallet||0;b+=vf;for(const [d] of days){if(d<S.config.openDate)continue;const s=daySum[d];b+=s.cashIn-s.cashOut+s.vf;vf+=s.vf;bal[d]=b}
   return S.cache={days,daySum,monSum,bal,end:b,endVf:vf,endCash:b-vf};
 }
 function zero(){const s={cashIn:0,cashOut:0,vf:0,profit:0,net:0,n:0,days:0};for(const k of NUMF)s[k]=0;return s}
 function add(a,b){for(const k in b)if(k!=='days')a[k]+=b[k]}
-function sumEntries(es){const s=zero();for(const e of es){for(const k of NUMF)s[k]+=g(e,k);s.cashIn+=cashIn(e);s.cashOut+=cashOut(e);s.vf+=vfNet(e);s.profit+=profit(e);s.net+=netOf(e);s.n++}return s}
+function sumEntries(es,d){const s=zero();for(const e of es){const dd=d||e._d||'';for(const k of NUMF)s[k]+=g(e,k);s.fp+=fpOf(e,dd)-g(e,'fp');s.ip+=ipOf(e,dd)-g(e,'ip');s.cashIn+=cashIn(e);s.cashOut+=cashOut(e);s.vf+=vfNet(e);s.profit+=profit(e,dd);s.net+=netOf(e,dd);s.n++}return s}
 const mSum=m=>idx().monSum[m]||zero();
 function dayEntries(iso){const m=S.months[iso.slice(0,7)];return (m&&m.days&&m.days[iso])||[]}
 function monthEntries(m){const mo=S.months[m];if(!mo)return [];return Object.keys(mo.days||{}).sort().flatMap(d=>(mo.days[d]||[]).map((e,ix)=>({...e,_d:d,_ix:ix})))}
@@ -356,7 +360,7 @@ function vHome(){
 
   <div class="cols">
     <section class="sheet pad c8"><div class="sh"><h3>المكسب حسب المصدر</h3><span class="hint">آخر 12 شهر</span></div>
-      <div class="legend">${SRC.map(p=>`<span><i style="background:var(${p.c})"></i>${p.name}</span>`).join('')}</div><div class="chart" id="cSrc"></div></section>
+      <div class="legend">${SRC.map(p=>`<span><i style="background:var(${p.c})"></i>${p.name}</span>`).join('')}</div><div class="chart" id="cSrc"></div><div class="hint" style="margin-top:6px">تحت الصفر = شهر الشرا فيه كان أكتر من البيع (كتاكيت/تلقيح). من شهر 5.26 مكسبهم = داخل − خارج زي الإكسل.</div></section>
     <section class="sheet pad c4"><div class="sh"><h3>مقارنة</h3></div>
       <div class="tbl"><table><thead><tr><th></th><th class="n">${shortM(m)}</th><th class="n">${shortM(addMonths(m,-1))}</th><th class="n">${shortM(addMonths(m,-12))}</th></tr></thead><tbody>
       ${[['الداخل','cashIn'],['المكسب','profit'],['السونار','so'],['المصاريف','ex'],['الصافي','net'],['عدد الحركات','n'],['أيام الشغل','days']].map(([l,k])=>`<tr><td>${l}</td><td class="n"><b>${fmt(s[k])}</b></td><td class="n">${fmt(pv[k])}</td><td class="n">${ly.n?fmt(ly[k]):'—'}</td></tr>`).join('')}
@@ -376,6 +380,9 @@ function vHome(){
 
     <section class="sheet pad c6"><div class="sh"><h3>هامش ربح الأدوية</h3><span class="hint">المكسب ÷ البيع · آخر 12 شهر</span></div><div class="chart" id="cMargin"></div></section>
     <section class="sheet pad c6"><div class="sh"><h3>السونار</h3><span class="hint">دخل السونار · آخر 12 شهر</span></div><div class="chart" id="cSo"></div></section>
+    <section class="sheet pad c12"><div class="sh"><h3>كتاكيت وعلف + تلقيح</h3><span class="hint">المكسب كل شهر · آخر 12 شهر</span></div>
+      <div class="legend"><span><i style="background:var(--s3)"></i>كتاكيت وعلف</span><span><i style="background:var(--s4)"></i>تلقيح</span></div><div class="chart" id="cFI"></div>
+      <div class="hint" style="margin-top:6px">تحت الصفر = الشرا في الشهر ده كان أكتر من البيع.</div></section>
   </div>`;
   $('#dashM').onchange=e=>{S.dash=e.target.value;render()};
   document.querySelectorAll('[data-dm]').forEach(b=>b.onclick=()=>{S.dash=+b.dataset.dm?addMonths(m,+b.dataset.dm):curMonth();render()});
@@ -391,6 +398,7 @@ function vHome(){
   line($('#cBal'),bp,'--s1');
   line($('#cMargin'),r12.map(r=>({label:shortM(r.m),v:r.mi?Math.round(r.mp/r.mi*100):null})),'--s2',{suffix:'%'});
   bars($('#cSo'),r12.map(r=>({label:shortM(r.m),v:r.so})),'--s2');
+  grouped($('#cFI'),r12.map(r=>({label:shortM(r.m),a:r.n?r.fp:null,b:r.n?r.ip:null})),'كتاكيت وعلف','تلقيح','--s3','--s4');
 }
 
 /* ===== charts (SVG, one axis, RTL time: oldest on the right) ===== */
@@ -411,14 +419,17 @@ function axes(W,H,pl,pr,pt,pb,mn,mx,y,suffix=''){let s='';for(const t of ticks(m
 const topPath=(x,y,w,h,r)=>{r=Math.min(r,h,w/2);return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`};
 const botPath=(x,y0,w,y1,r)=>{const h=y1-y0;r=Math.min(r,h,w/2);return `M${x},${y0}V${y1-r}Q${x},${y1} ${x+r},${y1}H${x+w-r}Q${x+w},${y1} ${x+w},${y1-r}V${y0}Z`};
 function stacked(host,data){
-  const W=cw(host),H=250,pl=4,pr=44,pt=12,pb=24,tip=frame(host);const ev=every(data.length,W);
-  const mx=nice(Math.max(1,...data.map(d=>d.parts.reduce((a,p)=>a+p.v,0))));const y=v=>pt+(H-pt-pb)*(1-v/mx);const bw=(W-pl-pr)/data.length;
-  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="المكسب حسب المصدر">`+axes(W,H,pl,pr,pt,pb,0,mx,y);const cells=[];
-  data.forEach((d,i)=>{const x=W-pr-(i+1)*bw,w=Math.max(4,bw*.6),x0=x+(bw-w)/2;let acc=0;const nz=d.parts.filter(p=>p.v>0);s+=`<g data-hl="${i}">`;
-    for(const p of d.parts){if(p.v<=0)continue;const y1=y(acc+p.v),y0=y(acc);const h=Math.max(0,y0-y1-(acc>0?2:0));s+=p===nz[nz.length-1]?`<path d="${topPath(x0,y1,w,h,4)}" fill="var(${p.c})"/>`:`<rect x="${x0}" y="${y1}" width="${w}" height="${h}" fill="var(${p.c})"/>`;acc+=p.v}
+  const W=cw(host),H=260,pl=4,pr=44,pt=12,pb=24,tip=frame(host);const ev=every(data.length,W);
+  const pos=d=>d.parts.reduce((a,p)=>a+Math.max(0,p.v),0),neg=d=>d.parts.reduce((a,p)=>a+Math.min(0,p.v),0);
+  const mx=nice(Math.max(1,...data.map(pos)));let mn=Math.min(0,...data.map(neg));mn=mn<0?-nice(-mn):0;
+  const y=v=>pt+(H-pt-pb)*(mx-v)/(mx-mn);const bw=(W-pl-pr)/data.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="المكسب حسب المصدر">`+axes(W,H,pl,pr,pt,pb,mn,mx,y);const cells=[];
+  data.forEach((d,i)=>{const x=W-pr-(i+1)*bw,w=Math.max(4,bw*.6),x0=x+(bw-w)/2;let up=0,dn=0;const pz=d.parts.filter(p=>p.v>0),nz=d.parts.filter(p=>p.v<0);s+=`<g data-hl="${i}">`;
+    for(const p of pz){const y1=y(up+p.v),y0=y(up);const h=Math.max(0,y0-y1-(up>0?2:0));s+=p===pz[pz.length-1]?`<path d="${topPath(x0,y1,w,h,4)}" fill="var(${p.c})"/>`:`<rect x="${x0}" y="${y1}" width="${w}" height="${h}" fill="var(${p.c})"/>`;up+=p.v}
+    for(const p of nz){const y0=y(dn)+(dn<0?2:0),y1=y(dn+p.v);const h=Math.max(0,y1-y0);s+=p===nz[nz.length-1]?`<path d="${botPath(x0,y0,w,y1,4)}" fill="var(${p.c})"/>`:`<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="var(${p.c})"/>`;dn+=p.v}
     s+=`</g>${(data.length-1-i)%ev?'':`<text x="${x+bw/2}" y="${H-6}" text-anchor="middle">${d.label}</text>`}<rect data-i="${i}" x="${x}" y="0" width="${bw}" height="${H}" fill="transparent"/>`;cells.push({x,w:bw})});
   s+=`<line class="base" x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}"/></svg>`;host.insertAdjacentHTML('beforeend',s);
-  hover(host,tip,W,cells,i=>{const d=data[i];return `<b>${d.label}</b> — ${fmt(d.parts.reduce((a,p)=>a+p.v,0))}<br>`+d.parts.filter(p=>p.v).map(p=>`<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(${p.c})"></i> ${p.name}: ${fmt(p.v)}`).join('<br>')});
+  hover(host,tip,W,cells,i=>{const d=data[i];return `<b>${d.label}</b> — ${fmt(d.parts.reduce((a,p)=>a+p.v,0))}<br>`+d.parts.filter(p=>p.v).map(p=>`<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(${p.c})"></i> ${p.name}: ${fmt(p.v)}${p.v<0?' (الشرا أكتر من البيع)':''}`).join('<br>')});
 }
 function bars(host,data,color,o={}){
   const W=cw(host),H=o.dense?210:230,pl=4,pr=44,pt=12,pb=24,tip=frame(host);const ev=every(data.length,W,o.dense?26:46);
@@ -456,13 +467,13 @@ function line(host,data,color,o={}){
 /* ===== DAY ===== */
 function usedCols(es){const set=new Set(['mi','mo','mp','so','ex','db']);for(const e of es)for(const k of NUMF)if(g(e,k))set.add(k);return NUMF.filter(k=>set.has(k))}
 function colHead(k){for(const G of GROUPS)if(G.f.includes(k))return `${G.name}<br>${LABEL[k]}`;return LABEL[k]}
-function entryTable(es,o={}){const cols=usedCols(es),s=sumEntries(es);
+function entryTable(es,o={}){const cols=usedCols(es),s=sumEntries(es,o.iso);
   return `<div class="sheet tbl"><table><thead><tr>${o.date?'<th>التاريخ</th>':''}<th>البيان</th>${cols.map(k=>`<th class="n">${colHead(k)}</th>`).join('')}<th>الاونر / الاسم</th></tr></thead><tbody>
   ${es.map((e,i)=>`<tr class="click" data-d="${e._d||o.iso}" data-id="${esc(e.i||'')}" data-ix="${e._ix??i}">${o.date?`<td class="n">${e._d}</td>`:''}<td class="desc">${esc(e.d)}</td>${cols.map(k=>g(e,k)?`<td class="n ${['mo','fo','io','xo','ex','ch','vo','ve'].includes(k)?'out':''}">${fmt(e[k])}</td>`:'<td class="n z">·</td>').join('')}<td class="desc">${esc(e.p)}</td></tr>`).join('')}</tbody>
   <tfoot><tr>${o.date?'<td></td>':''}<td>الإجمالي · ${es.length} حركة</td>${cols.map(k=>`<td class="n">${s[k]?fmt(s[k]):''}</td>`).join('')}<td></td></tr></tfoot></table></div>`}
 function bindRows(){document.querySelectorAll('tr.click[data-d]').forEach(tr=>tr.onclick=()=>{const es=dayEntries(tr.dataset.d),id=tr.dataset.id,ix=+tr.dataset.ix;const e=id?es.find(x=>x.i===id):es[ix];if(e)openForm(tr.dataset.d,e,id?null:ix)})}
 function vDay(){
-  const iso=S.day||todayISO();S.day=iso;const es=dayEntries(iso),s=sumEntries(es),b=balAt(iso);
+  const iso=S.day||todayISO();S.day=iso;const es=dayEntries(iso),s=sumEntries(es,iso),b=balAt(iso);
   $('#main').innerHTML=`
   <div class="sec-h"><h2>يومية ${dayName(iso)} ${+iso.slice(8)} ${monthName(iso.slice(0,7))}</h2><span class="line"></span>
     <div class="tools"><button class="btn sm" id="dP" type="button">→ امبارح</button><input type="date" id="dPk" value="${iso}" aria-label="اختار اليوم"><button class="btn sm" id="dN" type="button">بكرة ←</button>${iso!==todayISO()?'<button class="btn sm" id="dT" type="button">النهارده</button>':''}</div></div>
@@ -530,12 +541,12 @@ function vYear(){
   document.querySelectorAll('tr[data-m]').forEach(tr=>tr.onclick=()=>{S.month=tr.dataset.m;location.hash='#month'});
   grouped($('#cYY'),ms.map(m=>({label:MONTHS[+m.slice(5)-1].slice(0,3),a:mSum(m).n?mSum(m).net:null,b:mSum(addMonths(m,-12)).n?mSum(addMonths(m,-12)).net:null})),y,String(+y-1));
 }
-function grouped(host,data,la,lb){
+function grouped(host,data,la,lb,ca='--s1',cb='--s2'){
   const W=cw(host),H=240,pl=4,pr=44,pt=12,pb=24,tip=frame(host);const ev=every(data.length,W,34);const vals=data.flatMap(d=>[d.a,d.b]).filter(v=>v!=null);
   let mx=Math.max(0,...vals),mn=Math.min(0,...vals);mx=mx>0?nice(mx):0;mn=mn<0?-nice(-mn):0;if(mx===mn)mx=1;
   const y=v=>pt+(H-pt-pb)*(mx-v)/(mx-mn);const bw=(W-pl-pr)/data.length;let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`+axes(W,H,pl,pr,pt,pb,mn,mx,y);const cells=[];
   data.forEach((d,i)=>{const x=W-pr-(i+1)*bw,w=Math.max(3,bw*.32);
-    [[d.a,'--s1',x+bw/2-w-1],[d.b,'--s2',x+bw/2+1]].forEach(([v,c,x0])=>{if(!v)return;s+=v>0?`<path data-hl="${i}" d="${topPath(x0,y(v),w,y(0)-y(v),3)}" fill="var(${c})"/>`:`<path data-hl="${i}" d="${botPath(x0,y(0),w,y(v),3)}" fill="var(${c})"/>`});
+    [[d.a,ca,x+bw/2-w-1],[d.b,cb,x+bw/2+1]].forEach(([v,c,x0])=>{if(!v)return;s+=v>0?`<path data-hl="${i}" d="${topPath(x0,y(v),w,y(0)-y(v),3)}" fill="var(${c})"/>`:`<path data-hl="${i}" d="${botPath(x0,y(0),w,y(v),3)}" fill="var(${c})"/>`});
     s+=`${(data.length-1-i)%ev?'':`<text x="${x+bw/2}" y="${H-6}" text-anchor="middle">${d.label}</text>`}<rect data-i="${i}" x="${x}" y="0" width="${bw}" height="${H}" fill="transparent"/>`;cells.push({x,w:bw})});
   s+=`<line class="base" x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}"/></svg>`;host.insertAdjacentHTML('beforeend',s);
   hover(host,tip,W,cells,i=>`<b>${data[i].label}</b><br>${la}: ${data[i].a==null?'—':fmt(data[i].a)}<br>${lb}: ${data[i].b==null?'—':fmt(data[i].b)}`);
@@ -633,7 +644,7 @@ function openForm(iso,e,legacyIx,isNew){
     <fieldset><legend>أدوية</legend><div class="fg">${nf('mi','داخل (بيع)',e)}${nf('mo','خارج (شرا)',e)}${nf('mp','مكسب',e)}</div></fieldset>
     <div class="fg">${nf('so','سونار',e)}${nf('ex','مصاريف',e)}${nf('db','باقي (دين)',e)}<div class="f"><label for="f_p">الاونر / الاسم</label><input type="text" id="f_p" list="dlParty" value="${esc(e.p||'')}" autocomplete="off"></div></div>
     <details ${more?'open':''}><summary>باقي الخانات: كتاكيت وعلف، تلقيح، إضافي، فودافون كاش، صدقة، تحصيل، دين موردين</summary><div style="display:grid;gap:10px;margin-top:8px">
-      ${GROUPS.slice(1).map(G=>`<fieldset><legend>${G.name}</legend><div class="fg">${nf(G.f[0],'داخل',e)}${nf(G.f[1],'خارج',e)}${nf(G.f[2],'مكسب',e)}</div></fieldset>`).join('')}
+      ${GROUPS.slice(1).map(G=>`<fieldset><legend>${G.name}</legend>${G.f[0]!=='xi'?'<div class="hint" style="margin:-4px 0 6px">لو سبت المكسب فاضي، هيتحسب داخل − خارج زي الإكسل.</div>':''}<div class="fg">${nf(G.f[0],'داخل',e)}${nf(G.f[1],'خارج',e)}${nf(G.f[2],'مكسب',e)}</div></fieldset>`).join('')}
       <fieldset><legend>فودافون كاش</legend><div class="fg">${nf('vi','داخل',e)}${nf('vo','خارج',e)}${nf('ve','خارج مصاريف',e)}</div></fieldset>
       <div class="fg">${nf('ch','صدقة',e)}${nf('pd','تحصيل دين',e)}${nf('wo','شطب دين',e)}${nf('sd','دين موردين (علينا بالسالب)',e).replace(' min="0"','')}</div></div></details>
     <div class="err" id="eErr" hidden></div>
