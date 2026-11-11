@@ -330,7 +330,9 @@ function vHome(){
   const s=mSum(m),pv=mSum(addMonths(m,-1)),ly=mSum(addMonths(m,-12));
   const isCur=m===curMonth();const nd=dim(m);const elapsed=isCur?+todayISO().slice(8):nd;
   const last=lastDataMonth();
-  const openDebt=debtRows(false).reduce((a,r)=>a+Math.max(0,r.rem),0);
+  const dOpen=debtRows(false).filter(r=>Math.round(r.rem)>0),openDebt=dOpen.reduce((a,r)=>a+r.rem,0);
+  const pOpen=payRows(false).filter(r=>Math.round(r.rem)>0),openPay=pOpen.reduce((a,r)=>a+r.rem,0);
+  const owedList=(rows,c,empty)=>rows.length?`<div class="hb">${rows.slice(0,10).map(r=>`<div class="r"><span title="${esc(r.name)}">${esc(r.name)}</span><span class="t"><i style="width:${(r.rem/rows[0].rem*100).toFixed(1)}%;background:var(${c})"></i></span><span class="n">${fmt(r.rem)}</span></div>`).join('')}</div>${rows.length>10?`<div class="hint" style="margin-top:6px">و${rows.length-10} اسم كمان</div>`:''}`:`<div class="empty">${empty}</div>`;
   const avgDay=s.days?s.cashIn/s.days:0;
   const ms12=[];for(let i=11;i>=0;i--)ms12.push(addMonths(m,-i));
   const es=monthEntries(m);
@@ -383,6 +385,11 @@ function vHome(){
     <section class="sheet pad c12"><div class="sh"><h3>كتاكيت وعلف + تلقيح</h3><span class="hint">المكسب كل شهر · آخر 12 شهر</span></div>
       <div class="legend"><span><i style="background:var(--s3)"></i>كتاكيت وعلف</span><span><i style="background:var(--s4)"></i>تلقيح</span></div><div class="chart" id="cFI"></div>
       <div class="hint" style="margin-top:6px">تحت الصفر = الشرا في الشهر ده كان أكتر من البيع.</div></section>
+
+    <section class="sheet pad c6"><div class="sh"><h3>الديون</h3><span class="hint">لينا عند الناس · <b class="n gold">${fmt(openDebt)}</b> · ${dOpen.length} اسم · <a href="#debts">التفاصيل</a></span></div>
+      ${owedList(dOpen,'--s4','مفيش ديون مفتوحة')}</section>
+    <section class="sheet pad c6"><div class="sh"><h3>الديون العليا</h3><span class="hint">علينا للموردين · <b class="n out">${fmt(openPay)}</b> · ${pOpen.length} اسم · <a href="#payables">التفاصيل</a></span></div>
+      ${owedList(pOpen,'--s2','مفيش ديون علينا مفتوحة')}</section>
   </div>`;
   $('#dashM').onchange=e=>{S.dash=e.target.value;render()};
   document.querySelectorAll('[data-dm]').forEach(b=>b.onclick=()=>{S.dash=+b.dataset.dm?addMonths(m,+b.dataset.dm):curMonth();render()});
