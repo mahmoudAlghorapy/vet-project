@@ -566,13 +566,14 @@ function debtRows(all){const from=all?'0000':S.config.openDate;const map={};
 function vDebts(){
   const rows=debtRows(S.debtAll),open=rows.filter(r=>Math.round(r.rem)>0),closed=rows.filter(r=>Math.round(r.rem)<=0),tot=open.reduce((a,r)=>a+r.rem,0);
   $('#main').innerHTML=`
-  <div class="sec-h"><h2>الديون</h2><span class="line"></span><div class="tools"><label class="hint"><input type="checkbox" id="dAll" ${S.debtAll?'checked':''}> اعرض ديون الإكسل القديمة</label></div></div>
+  <div class="sec-h"><h2>الديون</h2><span class="line"></span><div class="tools"><label class="hint"><input type="checkbox" id="dAll" ${S.debtAll?'checked':''}> اعرض ديون الإكسل القديمة</label><button class="btn sm" type="button" id="dX">نزّل Excel</button></div></div>
   <div class="strip"><div class="hero"><span class="k">إجمالي الديون المفتوحة</span><span class="v n">${fmt(tot)}</span><span class="d">${open.length} اسم · ${S.debtAll?'كل الفترة':'من '+S.config.openDate}</span></div></div>
   ${open.length?`<section class="sheet"><div class="tbl"><table><thead><tr><th>الاسم</th><th class="n">عليه</th><th class="n">دفع</th><th class="n">شطب</th><th class="n">الباقي</th><th>آخر حركة</th><th></th></tr></thead><tbody>
   ${open.map((r,i)=>`<tr><td class="desc"><b>${esc(r.name)}</b><div class="hint n" style="direction:rtl">${r.moves.slice(-4).map(x=>`${x.d.slice(8)}/${x.d.slice(5,7)}: ${x.db?'+'+fmt(x.db):''}${x.pd?' −'+fmt(x.pd):''}${x.wo?' شطب '+fmt(x.wo):''}`).join(' · ')}</div></td><td class="n">${fmt(r.debt)}</td><td class="n">${fmt(r.paid)}</td><td class="n">${fmt(r.wo)}</td><td class="n"><span class="tag debt">${fmt(r.rem)}</span></td><td class="n">${r.last}</td><td><button class="btn sm" data-pay="${i}" type="button">تحصيل</button> <button class="btn sm" data-wo="${i}" type="button">شطب</button></td></tr>`).join('')}</tbody></table></div></section>`:'<div class="sheet empty">مفيش ديون مفتوحة.</div>'}
   ${closed.length?`<details><summary>اتسدّدت (${closed.length})</summary><div class="sheet tbl"><table><tbody>${closed.map(r=>`<tr><td>${esc(r.name)}</td><td class="n">${fmt(r.debt)}</td><td>خالص</td><td class="n">${r.last}</td></tr>`).join('')}</tbody></table></div></details>`:''}
   <div class="hint">الدين بيتسجل من خانة <b>باقي</b> في أي حركة مع اسم الاونر. "تحصيل" بيدخل الفلوس الخزنة، و"شطب" بيقفل الدين من غير ما يأثر على الخزنة.</div>`;
   $('#dAll').onchange=e=>{S.debtAll=e.target.checked;render()};
+  $('#dX').onclick=()=>exportDebtsXlsx(['debts'],'الديون-'+todayISO()+'.xlsx');
   const nm=r=>r.name==='بدون اسم'?'':r.name;
   document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.pay];openForm(todayISO(),{p:nm(r),d:'تحصيل دين',pd:Math.round(r.rem)},null,true)});
   document.querySelectorAll('[data-wo]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.wo];openForm(todayISO(),{p:nm(r),d:'شطب دين',wo:Math.round(r.rem)},null,true)});
@@ -586,7 +587,7 @@ function vPayables(){
   const rows=payRows(S.payAll),open=rows.filter(r=>Math.round(r.rem)>0),over=rows.filter(r=>Math.round(r.rem)<0),closed=rows.filter(r=>Math.round(r.rem)===0),tot=open.reduce((a,r)=>a+r.rem,0),totOver=over.reduce((a,r)=>a-r.rem,0);
   const mv=r=>r.moves.slice(-4).map(x=>`${x.d.slice(8)}/${x.d.slice(5,7)}: ${x.sd>0?'+'+fmt(x.sd):'سداد '+fmt(-x.sd)}`).join(' · ');
   $('#main').innerHTML=`
-  <div class="sec-h"><h2>الديون العليا</h2><span class="line"></span><div class="tools"><label class="hint"><input type="checkbox" id="pAll" ${S.payAll?'checked':''}> اعرض كل الفترة</label></div></div>
+  <div class="sec-h"><h2>الديون العليا</h2><span class="line"></span><div class="tools"><label class="hint"><input type="checkbox" id="pAll" ${S.payAll?'checked':''}> اعرض كل الفترة</label><button class="btn sm" type="button" id="pX">نزّل Excel</button></div></div>
   <div class="strip"><div class="hero"><span class="k">إجمالي اللي علينا للموردين</span><span class="v n">${fmt(tot)}</span><span class="d">${open.length} اسم · ${S.payAll?'كل الفترة':'من '+S.config.openDate}</span></div>
     <div><span class="k">اتسدد زيادة / سداد من غير دين متسجل</span><span class="v n">${fmt(totOver)}</span><span class="d">${over.length} اسم</span></div></div>
   ${open.length?`<section class="sheet"><div class="tbl"><table><thead><tr><th>المورد</th><th class="n">علينا</th><th class="n">سددنا</th><th class="n">الباقي علينا</th><th>آخر حركة</th><th></th></tr></thead><tbody>
@@ -595,6 +596,7 @@ function vPayables(){
   ${closed.length?`<details><summary>اتسدّدت (${closed.length})</summary><div class="sheet tbl"><table><tbody>${closed.map(r=>`<tr><td>${esc(r.name)}</td><td class="n">${fmt(r.owed)}</td><td>خالص</td><td class="n">${r.last}</td></tr>`).join('')}</tbody></table></div></details>`:''}
   <div class="hint">الدين اللي علينا بيتسجل من خانة <b>دين موردين</b>: رقم موجب = اتأخر علينا للمورد، رقم سالب = سددناه. الاسم بياخد من خانة الاونر، ولو فاضية من البيان. خانة دين موردين مش بتأثر على الخزنة — السداد نفسه بيتسجل في خارج زي العادة.</div>`;
   $('#pAll').onchange=e=>{S.payAll=e.target.checked;render()};
+  $('#pX').onclick=()=>exportDebtsXlsx(['payables'],'الديون-العليا-'+todayISO()+'.xlsx');
   document.querySelectorAll('[data-spay]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.spay];openForm(todayISO(),{p:r.name==='بدون اسم'?'':r.name,d:'سداد مورد',sd:-Math.round(r.rem)},null,true)});
 }
 
@@ -639,10 +641,31 @@ function vSetup(){
   $('#cfg').onsubmit=async e=>{e.preventDefault();const d={...S.config,name:$('#cN').value.trim()||'دفتر العيادة البيطرية',openDate:$('#cD').value||c.openDate,openAmount:+$('#cA').value||0,openWallet:+$('#cW').value||0};
     try{await setDoc('config/main',d);toast('اتحفظ');render()}catch(x){toast('مقدرتش أحفظ: '+(x.message||x.code))}};
 }
-function bindBackup(){document.querySelectorAll('[data-backup]').forEach(b=>b.onclick=async()=>{b.disabled=true;const ok=await exportXlsx(monthList(),'دفتر-العيادة-'+todayISO()+'.xlsx');b.disabled=false;if(ok)markBackup()})}
+function bindBackup(){document.querySelectorAll('[data-backup]').forEach(b=>b.onclick=async()=>{b.disabled=true;const ok=await exportXlsx(monthList(),'دفتر-العيادة-'+todayISO()+'.xlsx',true);b.disabled=false;if(ok)markBackup()})}
 async function markBackup(){try{await setDoc('config/main',{...S.config,lastBackup:todayISO()});render()}catch(e){}}
 async function save(filename,blob){try{const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return true}catch(e){toast('التنزيل ما تمّش');return false}}
-async function exportXlsx(months,filename){
+/* شيتات الديون: ملخص لكل اسم + كل الحركات */
+function addDebtSheets(wb,kinds){
+  const sheet=(aoa,cols,name)=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=cols.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name)};
+  if(kinds.includes('debts')){const rows=debtRows(S.debtAll),from=S.debtAll?'كل الفترة':'من '+S.config.openDate;
+    const aoa=[['الديون (لينا عند الناس) — '+from],[],['الاسم','عليه','دفع','شطب','الباقي','آخر حركة','الحالة']];let t=[0,0,0,0];
+    for(const r of rows){aoa.push([r.name,r.debt||null,r.paid||null,r.wo||null,Math.round(r.rem*100)/100,r.last,Math.round(r.rem)>0?'مفتوح':'خالص']);t[0]+=r.debt;t[1]+=r.paid;t[2]+=r.wo;if(Math.round(r.rem)>0)t[3]+=r.rem}
+    aoa.push([],['الإجمالي',t[0],t[1],t[2],t[3],'','الباقي المفتوح']);sheet(aoa,[24,11,11,11,11,12,10],'الديون');
+    const mv=[['التاريخ','الاسم','باقي (دين)','تحصيل','شطب']];for(const r of rows)for(const x of r.moves)mv.push([x.d,r.name,x.db||null,x.pd||null,x.wo||null]);
+    mv.splice(1,mv.length,...mv.slice(1).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0));sheet(mv,[12,24,11,11,11],'حركات الديون')}
+  if(kinds.includes('payables')){const rows=payRows(S.payAll),from=S.payAll?'كل الفترة':'من '+S.config.openDate;
+    const aoa=[['الديون العليا (علينا للموردين) — '+from],[],['المورد','علينا','سددنا','الباقي علينا','آخر حركة','الحالة']];let t=[0,0,0];
+    for(const r of rows){const rem=Math.round(r.rem);aoa.push([r.name,r.owed||null,r.paid||null,Math.round(r.rem*100)/100,r.last,rem>0?'مفتوح':rem<0?'اتسدد زيادة / من غير دين متسجل':'خالص']);t[0]+=r.owed;t[1]+=r.paid;if(rem>0)t[2]+=r.rem}
+    aoa.push([],['الإجمالي',t[0],t[1],t[2],'','الباقي المفتوح']);sheet(aoa,[24,11,11,12,12,26],'الديون العليا');
+    const mv=[['التاريخ','المورد','علينا (+)','سددنا (−)']];for(const r of rows)for(const x of r.moves)mv.push([x.d,r.name,x.sd>0?x.sd:null,x.sd<0?-x.sd:null]);
+    mv.splice(1,mv.length,...mv.slice(1).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0));sheet(mv,[12,24,11,11],'حركات الديون العليا')}
+}
+async function exportDebtsXlsx(kinds,filename){
+  if(!window.XLSX){toast('مكتبة الإكسل ما اتحمّلتش — جرّب تحدّث الصفحة');return false}
+  const wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};addDebtSheets(wb,kinds);
+  return save(filename,new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+}
+async function exportXlsx(months,filename,withDebts){
   if(!window.XLSX){toast('مكتبة الإكسل ما اتحمّلتش — جرّب تحدّث الصفحة');return false}
   const keys=[...GROUPS.flatMap(G=>G.f),'so','ch','db','pd','wo','vi','vo','ve','ex','sd'];
   const head=['اليوم','التاريخ','البيان',...GROUPS.flatMap(G=>G.f.map(k=>G.name+' '+LABEL[k])),'سونار','صدقة','باقي','تحصيل','شطب','فودافون داخل','فودافون خارج','فودافون مصاريف','مصاريف','دين موردين','الاونر'];
@@ -654,6 +677,7 @@ async function exportXlsx(months,filename){
     const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:9},{wch:11},{wch:22},...keys.map(()=>({wch:9})),{wch:18}];
     XLSX.utils.book_append_sheet(wb,ws,m)}
   if(!months.length){toast('مفيش بيانات تتنزل');return false}
+  if(withDebts)addDebtSheets(wb,['debts','payables']);
   const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   return save(filename,new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
 }
