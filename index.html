@@ -184,7 +184,7 @@ details summary{cursor:pointer;color:var(--in);padding:2px 0}
     </div>
   </div>
   <div class="wrap"><nav class="tabs" id="tabs">
-    <a href="#home">الداشبورد</a><a href="#day">اليومية</a><a href="#month">تقرير الشهر</a><a href="#year">السنة</a><a href="#debts">الديون</a><a href="#search">بحث</a><a href="#setup">الإعدادات والنسخ</a>
+    <a href="#home">الداشبورد</a><a href="#day">اليومية</a><a href="#month">تقرير الشهر</a><a href="#year">السنة</a><a href="#debts">الديون</a><a href="#payables">الديون العليا</a><a href="#search">بحث</a><a href="#setup">الإعدادات والنسخ</a>
   </nav></div>
 </header>
 
@@ -215,7 +215,7 @@ const ipOf=(e,d)=>(('ip' in e)||!d||d<DERIVE_FROM)?g(e,'ip'):g(e,'ii')-g(e,'io')
 const profit=(e,d)=>g(e,'mp')+fpOf(e,d)+ipOf(e,d)+g(e,'xp')+g(e,'so');
 const netOf=(e,d)=>profit(e,d)-g(e,'ex')-g(e,'ch')-g(e,'ve');
 
-const S={months:{},config:{name:'دفتر العيادة البيطرية',openDate:'2026-06-01',openAmount:6080},db:null,dl:null,ready:false,day:null,month:null,dash:null,year:null,debtAll:false,q:'',cache:null};
+const S={months:{},config:{name:'دفتر العيادة البيطرية',openDate:'2026-06-01',openAmount:6080},db:null,dl:null,ready:false,day:null,month:null,dash:null,year:null,debtAll:false,payAll:false,q:'',cache:null};
 const $=s=>document.querySelector(s);
 const fmt=n=>{n=Math.round((+n||0)*100)/100;return n.toLocaleString('en-US',{maximumFractionDigits:2})};
 const kfmt=n=>Math.abs(n)>=1000?(Math.round(n/100)/10).toLocaleString('en-US')+'k':fmt(n);
@@ -313,7 +313,7 @@ function render(){
   if(!S.ready)return;
   const I=idx();$('#hdrBal').textContent=fmt(I.end);$('#hdrSplit').textContent='كاش '+fmt(I.endCash)+' · فودافون '+fmt(I.endVf);
   const ts=I.daySum[t];$('#hdrToday').innerHTML=ts?fmt(ts.cashIn-ts.cashOut+ts.vf):'<span style="font-size:15px;opacity:.7">لسه</span>';
-  ({home:vHome,day:vDay,month:vMonth,year:vYear,debts:vDebts,search:vSearch,setup:vSetup}[r]||vHome)();
+  ({home:vHome,day:vDay,month:vMonth,year:vYear,debts:vDebts,payables:vPayables,search:vSearch,setup:vSetup}[r]||vHome)();
 }
 let lastW=innerWidth;window.addEventListener('resize',()=>{clearTimeout(window.__rz);window.__rz=setTimeout(()=>{if(Math.abs(innerWidth-lastW)>40&&!document.querySelector('.ov')){lastW=innerWidth;render()}},250)});
 window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0)});
@@ -569,6 +569,26 @@ function vDebts(){
   const nm=r=>r.name==='بدون اسم'?'':r.name;
   document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.pay];openForm(todayISO(),{p:nm(r),d:'تحصيل دين',pd:Math.round(r.rem)},null,true)});
   document.querySelectorAll('[data-wo]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.wo];openForm(todayISO(),{p:nm(r),d:'شطب دين',wo:Math.round(r.rem)},null,true)});
+}
+
+/* ===== PAYABLES (الديون العليا: دين موردين) — sd موجب = علينا، sd سالب = سددنا ===== */
+function payRows(all){const from=all?'0000':S.config.openDate;const map={};
+  for(const [d,es] of idx().days){if(d<from)continue;for(const e of es){const sd=g(e,'sd');if(!sd)continue;const k=partyKey(e);const r=map[k]||(map[k]={name:k,owed:0,paid:0,last:d,moves:[]});if(sd>0)r.owed+=sd;else r.paid-=sd;r.last=d;r.moves.push({d,sd})}}
+  return Object.values(map).map(r=>({...r,rem:r.owed-r.paid})).sort((a,b)=>b.rem-a.rem)}
+function vPayables(){
+  const rows=payRows(S.payAll),open=rows.filter(r=>Math.round(r.rem)>0),over=rows.filter(r=>Math.round(r.rem)<0),closed=rows.filter(r=>Math.round(r.rem)===0),tot=open.reduce((a,r)=>a+r.rem,0),totOver=over.reduce((a,r)=>a-r.rem,0);
+  const mv=r=>r.moves.slice(-4).map(x=>`${x.d.slice(8)}/${x.d.slice(5,7)}: ${x.sd>0?'+'+fmt(x.sd):'سداد '+fmt(-x.sd)}`).join(' · ');
+  $('#main').innerHTML=`
+  <div class="sec-h"><h2>الديون العليا</h2><span class="line"></span><div class="tools"><label class="hint"><input type="checkbox" id="pAll" ${S.payAll?'checked':''}> اعرض كل الفترة</label></div></div>
+  <div class="strip"><div class="hero"><span class="k">إجمالي اللي علينا للموردين</span><span class="v n">${fmt(tot)}</span><span class="d">${open.length} اسم · ${S.payAll?'كل الفترة':'من '+S.config.openDate}</span></div>
+    <div><span class="k">اتسدد زيادة / سداد من غير دين متسجل</span><span class="v n">${fmt(totOver)}</span><span class="d">${over.length} اسم</span></div></div>
+  ${open.length?`<section class="sheet"><div class="tbl"><table><thead><tr><th>المورد</th><th class="n">علينا</th><th class="n">سددنا</th><th class="n">الباقي علينا</th><th>آخر حركة</th><th></th></tr></thead><tbody>
+  ${open.map((r,i)=>`<tr><td class="desc"><b>${esc(r.name)}</b><div class="hint n" style="direction:rtl">${mv(r)}</div></td><td class="n">${fmt(r.owed)}</td><td class="n">${fmt(r.paid)}</td><td class="n"><span class="tag debt" style="color:var(--out)">${fmt(r.rem)}</span></td><td class="n">${r.last}</td><td><button class="btn sm" data-spay="${i}" type="button">سداد</button></td></tr>`).join('')}</tbody></table></div></section>`:'<div class="sheet empty">مفيش ديون علينا مفتوحة.</div>'}
+  ${over.length?`<details><summary>اتسدد زيادة أو سداد من غير دين متسجل (${over.length})</summary><div class="sheet tbl"><table><tbody>${over.map(r=>`<tr><td class="desc">${esc(r.name)}<div class="hint n" style="direction:rtl">${mv(r)}</div></td><td class="n">علينا ${fmt(r.owed)}</td><td class="n">سددنا ${fmt(r.paid)}</td><td class="n in">${fmt(-r.rem)}</td><td class="n">${r.last}</td></tr>`).join('')}</tbody></table></div></details>`:''}
+  ${closed.length?`<details><summary>اتسدّدت (${closed.length})</summary><div class="sheet tbl"><table><tbody>${closed.map(r=>`<tr><td>${esc(r.name)}</td><td class="n">${fmt(r.owed)}</td><td>خالص</td><td class="n">${r.last}</td></tr>`).join('')}</tbody></table></div></details>`:''}
+  <div class="hint">الدين اللي علينا بيتسجل من خانة <b>دين موردين</b>: رقم موجب = اتأخر علينا للمورد، رقم سالب = سددناه. الاسم بياخد من خانة الاونر، ولو فاضية من البيان. خانة دين موردين مش بتأثر على الخزنة — السداد نفسه بيتسجل في خارج زي العادة.</div>`;
+  $('#pAll').onchange=e=>{S.payAll=e.target.checked;render()};
+  document.querySelectorAll('[data-spay]').forEach(b=>b.onclick=()=>{const r=open[+b.dataset.spay];openForm(todayISO(),{p:r.name==='بدون اسم'?'':r.name,d:'سداد مورد',sd:-Math.round(r.rem)},null,true)});
 }
 
 /* ===== SEARCH ===== */
